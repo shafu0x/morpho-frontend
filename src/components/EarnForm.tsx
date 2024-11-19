@@ -35,24 +35,32 @@ export default function EarnForm() {
   }, [isSuccess, toast, hash]);
 
   const finalizeTransaction = async () => {
-    if (!selectedVault) {
+    if (!selectedVault || !selectedAsset) {
       return;
     }
-
+  
+    const actions = [];
+  
+    if (selectedAsset.address === WETH) {
+      // If the asset is native ETH, wrap it
+      actions.push(BundlerAction.wrapNative(finalAmount));
+    }
+  
+    // Add the ERC-4626 deposit action regardless of asset type
+    actions.push(
+      BundlerAction.erc4626Deposit(selectedVault.address, selectedAsset.address, 1, address as string)
+    );
+  
     const data = encodeFunctionData({
       abi,
       functionName: 'multicall',
-      args: [
-        [
-          BundlerAction.wrapNative(finalAmount),
-          BundlerAction.erc4626Deposit(selectedVault.address, WETH, 1, address as string)
-        ]
-      ]
+      args: [actions]
     });
+  
     await sendTransactionAsync({
       to: bundlerAddress,
       data: data,
-      value: finalAmount
+      value: selectedAsset.address === WETH ? finalAmount : '0' // Only send ETH if it's WETH (native)
     });
   };
 
